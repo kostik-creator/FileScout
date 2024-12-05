@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    command: sh -c "make migrate && python -m bot"
+    env_file:
+      - ./.env
+    environment:
+      SERVICE_ACCOUNT: ${SERVICE_ACCOUNT}
+      LOG_FILE_PATH_BOT: ${LOG_FILE_PATH_BOT}
+      LOG_FILE_PATH_DB: ${LOG_FILE_PATH_DB}
+    restart: always
+    depends_on:
+      - postgres
+      - mongo
+
+  postgres:
+    image: postgres:latest
+    restart: on-failure
+    env_file:
+      - ./.env
+    environment:
+      DB_URL: ${DB_URL}  
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  mongo:
+    image: mongo:latest
+    restart: on-failure
+    env_file:
+      - ./.env
+    environment:
+      MONGO_URL: ${MONGO_URL}
+    volumes:
+      - mongodata:/data/db
+    ports:
+      - "27017:27017"
+
+volumes:
+  pgdata:
+  mongodata:

@@ -112,6 +112,22 @@ async def orm_add_administrator(session: AsyncSession, phone_number: str, passwo
     except Exception as e:
         sqlalchemy_logger.log('error', f"Ошибка при добавлении администратора с номером {phone_number}: {e}")
 
+async def orm_get_all_admins(session: AsyncSession) -> List[Admin]:
+    """Получает всех пользователей вместе с их группами.
+
+    Args:
+        session (AsyncSession): Асинхронная сессия базы данных.
+
+    Returns:
+        List[User]: Список объектов User.
+    """
+    try:
+        query = select(Admin)
+        result = await session.execute(query)
+        return result.scalars().all()
+    except Exception as e:
+        sqlalchemy_logger.log('error', f"Ошибка при получении всех пользователей: {e}")
+        return []
 ############### Работа с пользователями ###############
 
 async def orm_get_user(session: AsyncSession, phone: str) -> Optional[User]:
@@ -183,6 +199,25 @@ async def orm_delete_user(session: AsyncSession, user: User) -> None:
 
         await session.delete(user)  # Удаляем пользователя
         await session.commit()  # Коммитим изменения
+    except Exception as e:
+        sqlalchemy_logger.log('error', f"Ошибка при удалении пользователя: {e}")
+
+async def orm_delete_admin(session: AsyncSession, admin: Admin) -> None:
+    """Удаляет пользователя из базы данных.
+
+    Args:
+        session (AsyncSession): Асинхронная сессия базы данных.
+        user (User): Объект пользователя для удаления.
+    
+    Raises:
+        ValueError: Если пользователь не найден.
+    """
+    try:
+        if admin is None:
+            raise ValueError("Администратор не найден для удаления.")
+
+        await session.delete(admin) 
+        await session.commit() 
     except Exception as e:
         sqlalchemy_logger.log('error', f"Ошибка при удалении пользователя: {e}")
 

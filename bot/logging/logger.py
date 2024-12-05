@@ -51,5 +51,12 @@ class SQLAlchemyLogger:
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 
+    def log(self, level: str, message: str) -> None:
+        """Записать сообщение в лог с заданным уровнем."""
+        if level == 'info':
+            self.logger.info(message)
+        elif level == 'error':
+            self.logger.error(message)
+
 bot_logger = BotLogger('bot.log')
 sqlalchemy_logger = SQLAlchemyLogger('db.log')

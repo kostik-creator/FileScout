@@ -14,7 +14,10 @@ from bot.database.orm_query import (
     get_groups,
     orm_add_administrator,
     orm_add_user,
+    orm_delete_admin,
     orm_delete_user,
+    orm_get_admin,
+    orm_get_all_admins,
     orm_get_all_users,
     orm_get_chatid_by_phone,
     orm_get_user,
@@ -51,9 +54,10 @@ ADMIN_KB = get_keyboard(
     "Список пользователей",
     "Найти пользователя",
     "Отправить сообщение",
+    "Список администраторов",
     "Назад",
     placeholder="Выберите действие",
-    sizes=(2, 2, 1),
+    sizes=(2, 2, 2, 1),
 )
 
 
@@ -109,7 +113,7 @@ async def create_administrator(message: types.Message, state: FSMContext)-> None
     bot_logger.log('info', f'Администратор {message.from_user.username} инициировал добавление нового администратора.')
 
 
-@admin_router.message(F.text == "Список пользователей")
+@admin_router.message(F.text.casefold() == "список пользователей")
 async def get_all_users(message: types.Message, session: AsyncSession) -> None:
     """Обрабатывает команду для получения списка всех пользователей и их групп.
 
@@ -141,6 +145,41 @@ async def get_all_users(message: types.Message, session: AsyncSession) -> None:
         bot_logger.log('error', f"Ошибка получения списка пользователей: {e}")
         await message.answer("❌ Произошла ошибка при получении списка пользователей. Пожалуйста, попробуйте позже.")
 
+@admin_router.message(F.text.casefold() == "список администраторов")
+async def get_all_admins(message: types.Message, session: AsyncSession) -> None:
+    """Обрабатывает команду для получения списка всех пользователей и их групп.
+
+    Args:
+        message (types.Message): Сообщение, полученное от админиистратора.
+        session (AsyncSession): Асинхронная сессия базы данных.
+    """
+    try:
+        admins = await orm_get_all_admins(session)  
+
+
+
+        user_list = "📋 Список администраторов:\n\n"
+
+        for index, admin in enumerate(admins, start=1):
+            user_list += f"{index}. 📞 Номер: <b>+{admin.phone}</b>,\n"
+
+            list_of_admins = get_callback_btns(
+                btns={
+                    'Удалить администратора': f'delete_admin_{admin.phone}',
+                },
+                sizes=(2, 1)
+            )
+
+            await message.answer(
+                f"{index}. 📞 Номер: <b>+{admin.phone}</b>",
+                reply_markup=list_of_admins
+            )
+
+    except Exception as e:
+        bot_logger.log('error', f"Ошибка получения списка администраторов: {e}")
+        await message.answer("❌ Произошла ошибка при получении списка администраторов. Пожалуйста, попробуйте позже.")
+
+
 
 @admin_router.message(F.text.casefold() == 'найти пользователя')
 async def find_user(message: types.Message, state: FSMContext)-> None:
@@ -157,7 +196,7 @@ async def find_user(message: types.Message, state: FSMContext)-> None:
     await state.set_state(SearchUser.waiting_for_phone)
 
 
-@admin_router.message(F.text == "Отправить сообщение")
+@admin_router.message(F.text.casefold() == "отправить сообщение")
 async def start_send_message_to_group(message: types.Message, session: AsyncSession) -> None:
     """Начинает процесс отправки сообщения всем пользователям группы.
     
@@ -305,6 +344,28 @@ async def delete_user(callback_query: types.CallbackQuery, session: AsyncSession
         await callback_query.answer(f"❌ Произошла ошибка при удалении пользователя: {e}")
         bot_logger.log('error', f"Ошибка при удалении пользователя с номером +{user.phone}: {e}")
 
+@admin_router.callback_query(F.data.startswith('delete_admin_'))
+async def delete_admin(callback_query: types.CallbackQuery, session: AsyncSession) -> None:
+    """Удаляет пользователя по номеру телефона, переданному через callback_data.
+    
+    Args:
+        callback_query (types.CallbackQuery): CallbackQuery от пользователя.
+        session (AsyncSession): Асинхронная сессия базы данных.
+    
+    """
+    phone = callback_query.data.split('_')[-1]
+
+    admin = await orm_get_admin(session, phone)
+
+    try:
+        await orm_delete_admin(session, admin)
+        await callback_query.answer(f"Администратор с номером +{admin.phone} был удален.")
+        await callback_query.message.edit_text(f"Администратор c номером +{admin.phone} был удален", reply_markup=None)
+
+    except Exception as e:
+        await callback_query.answer(f"❌ Произошла ошибка при удалении администратора: {e}")
+        bot_logger.log('error', f"Ошибка при удалении администратора с номером +{admin.phone}: {e}")
+
 
 @admin_router.callback_query(F.data.startswith("select_group_"))
 async def confirm_user_addition(callback: types.CallbackQuery, session: AsyncSession, state: FSMContext)-> None:
@@ -348,7 +409,7 @@ async def change_group_user(callback_query: types.CallbackQuery, session: AsyncS
     """
     data = callback_query.data.split('_')[-1] 
     id_group, phone = data.split(', ') 
-    group_name = await get_group_by_id(session, id_group)
+    group_name = await get_group_by_id(session, int(id_group))
 
     group_mapping = {
         '1': ('2', 'FWS'),
@@ -436,6 +497,7 @@ async def process_phone_input(message: types.Message, state: FSMContext, session
         await message.answer(
             f"🔔 Вы собираетесь добавить нового пользователя с номером: <b>+{phone_number}</b>\n"
             f"🔑 Вот его пароль для доступа: <b>{password}</b>\n\n"
+            "⚠️ <b>Пожалуйста, скопируйте пароль, так как после выбора группы он станет недоступен.</b>\n\n"
             "✅ <b>Пожалуйста, выберите группу папок, которые он сможет получать:</b>\n",
             reply_markup=get_callback_btns(btns=btns)
         )
