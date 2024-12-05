@@ -44,6 +44,7 @@ ADMIN_KB = get_keyboard(
     sizes=(2, 2, 1),
 )
 
+
 @admin_router.message(F.text.casefold() == "админ панель")
 async def check_command(message: types.Message, state: FSMContext) -> None:
     """Обрабатывает команду для открытия админ панели.
@@ -92,6 +93,16 @@ async def create_administrator(message: types.Message, state: FSMContext)-> None
                          "Не забудьте проверить, что номер правильный!")
     bot_logger.log('info', f'Администратор {message.from_user.username} инициировал добавление нового администратора.')
 
+@admin_router.message(F.text.casefold() == "Список администраторов")
+async def check_command(message: types.Message, state: FSMContext) -> None:
+    """Обрабатывает команду для открытия админ панели.
+
+    Args:
+        message (types.Message): Сообщение, полученное от пользователя.
+        state (FSMContext): Состояние машины состояний.
+    """
+    await state.set_state(AddAdmin.none)
+    await message.answer("✨ Выберите действие, которое хотите выполнить:", reply_markup=ADMIN_KB)
 
 @admin_router.message(F.text == "Список пользователей")
 async def get_all_users(message: types.Message, session: AsyncSession) -> None:
