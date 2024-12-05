@@ -1,0 +1,6 @@
+/.env
+/bot.log
+/db.log
+/filescout-6aff1164b27f.json
+/venv
+/__pycache__
