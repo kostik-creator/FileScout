@@ -1,11 +1,16 @@
 import os
+
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from bot.logging.logger import bot_logger
+
 from dotenv import load_dotenv
+
 load_dotenv('env')
+
+
 def get_drive_config():
     """
     Возвращает параметры для подключения к Google Drive API.
@@ -89,16 +94,17 @@ def format_files_response(files):
     :return: Строка с отформатированным ответом или сообщение об отсутствии файлов.
     """
     if files:
-        response_text = "Файлы в папке:\n"
+        response_text = "📂 Файлы в папке:\n"
         for file in files:
             file_id = file['id']
             file_name = file['name']
             download_link = f"https://drive.google.com/uc?id={file_id}"
-            response_text += f"📄 {file_name}: ({download_link})\n"
+            response_text += (
+                f"📄 <b>{file_name}</b>: [Скачать]({download_link})\n"
+            )
         return response_text
     else:
-        return "Файлы не найдены. 😞"
-    
+        return "🚫 Файлы не найдены. 😞"
 async def get_files_from_folder(service, folder_name, suffix):
     """
     Получает список файлов из указанной папки на Google Drive.

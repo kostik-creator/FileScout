@@ -9,11 +9,23 @@ from bot.auth.auth_function import generate_hashed_password
 from bot.filters.isadmin import IsAdmin
 from bot.keyboards.reply import get_keyboard
 from bot.logging.logger import bot_logger
-from bot.database.orm_query import get_group_by_id, get_groups, orm_add_administrator, orm_add_user, orm_delete_user, orm_get_all_users, orm_get_chatid_by_phone, orm_get_user, orm_get_users_by_group
+from bot.database.orm_query import (
+    get_group_by_id,
+    get_groups,
+    orm_add_administrator,
+    orm_add_user,
+    orm_delete_user,
+    orm_get_all_users,
+    orm_get_chatid_by_phone,
+    orm_get_user,
+    orm_get_users_by_group,
+)
+
 from bot.auth.user_verification import INITIAL_ADMIN_KB
 from bot.handlers.user_handlers import Form
 from bot.keyboards.inline import get_callback_btns, inline_actions_on_users
 from bot.send_messages.newsletter import send_message_to_user, send_photo_to_user, send_video_to_user
+
 
 class AddAdmin(StatesGroup):
     phone_input = State() 
@@ -37,8 +49,8 @@ ADMIN_KB = get_keyboard(
     "Добавить администратора",
     "Добавить пользователя",
     "Список пользователей",
-    "Список администраторов"
     "Найти пользователя",
+    "Отправить сообщение",
     "Назад",
     placeholder="Выберите действие",
     sizes=(2, 2, 1),
@@ -50,29 +62,31 @@ async def check_command(message: types.Message, state: FSMContext) -> None:
     """Обрабатывает команду для открытия админ панели.
 
     Args:
-        message (types.Message): Сообщение, полученное от пользователя.
+        message (types.Message): Сообщение, полученное от админиистратора.
         state (FSMContext): Состояние машины состояний.
     """
     await state.set_state(AddAdmin.none)
     await message.answer("✨ Выберите действие, которое хотите выполнить:", reply_markup=ADMIN_KB)
+
 
 @admin_router.message(F.text.casefold() == 'назад')
 async def back(message: types.Message, state: FSMContext)-> None:
     """Обрабатывает команду для возврата на предыдущий шаг.
 
     Args:
-        message (types.Message): Сообщение, полученное от пользователя.
+        message (types.Message): Сообщение, полученное от админиистратора.
         state (FSMContext): Состояние машины состояний.
     """
     await state.set_state(Form.search)
     await message.answer('🔙 Вы вернулись на предыдущий шаг. Как я могу помочь вам дальше?', reply_markup=INITIAL_ADMIN_KB)
+
 
 @admin_router.message(F.text.casefold() == 'добавить пользователя')
 async def create_user(message: types.Message, state: FSMContext)-> None:
     """Обрабатывает команду для начала процесса добавления пользователя.
 
     Args:
-        message (types.Message): Объект message.
+        message (types.Message): Сообщение, полученное от админиистратора.
         state (FSMContext): Состояние машины состояний.
     """
     await state.set_state(AddUser.phone_input)  
@@ -80,12 +94,13 @@ async def create_user(message: types.Message, state: FSMContext)-> None:
                          "Не забудьте проверить, что номер правильный!")
     bot_logger.log('info', f'Администратор {message.from_user.username} инициировал добавление нового Пользователя.')
 
+
 @admin_router.message(F.text.casefold() == 'добавить администратора')
 async def create_administrator(message: types.Message, state: FSMContext)-> None:
     """Обрабатывает команду для начала процесса добавления администратора.
 
     Args:
-        message (types.Message): Объект message.
+        message (types.Message): Сообщение, полученное от админиистратора.
         state (FSMContext): Состояние машины состояний.
     """
     await state.set_state(AddAdmin.phone_input)
@@ -93,23 +108,13 @@ async def create_administrator(message: types.Message, state: FSMContext)-> None
                          "Не забудьте проверить, что номер правильный!")
     bot_logger.log('info', f'Администратор {message.from_user.username} инициировал добавление нового администратора.')
 
-@admin_router.message(F.text.casefold() == "Список администраторов")
-async def check_command(message: types.Message, state: FSMContext) -> None:
-    """Обрабатывает команду для открытия админ панели.
-
-    Args:
-        message (types.Message): Сообщение, полученное от пользователя.
-        state (FSMContext): Состояние машины состояний.
-    """
-    await state.set_state(AddAdmin.none)
-    await message.answer("✨ Выберите действие, которое хотите выполнить:", reply_markup=ADMIN_KB)
 
 @admin_router.message(F.text == "Список пользователей")
 async def get_all_users(message: types.Message, session: AsyncSession) -> None:
     """Обрабатывает команду для получения списка всех пользователей и их групп.
 
     Args:
-        message (types.Message): Объект message.
+        message (types.Message): Сообщение, полученное от админиистратора.
         session (AsyncSession): Асинхронная сессия базы данных.
     """
     try:
@@ -142,33 +147,57 @@ async def find_user(message: types.Message, state: FSMContext)-> None:
     """Обрабатывает команду для начала процесса добавления администратора.
 
     Args:
-        message (types.Message): Объект message.
+        message (types.Message): Сообщение, полученное от админиистратора.
         state (FSMContext): Состояние машины состояний.
     """
-    await message.answer("Пожалуйста, введите номер телефона пользователя (без плюса):")
+    await message.answer(
+        "Вы можете вводить номер как с пробелами, так и без них. "
+        "Пример: <b>375 33 350 78 90</b> или <b>375333507890</b>. 🥺📞"
+        )
     await state.set_state(SearchUser.waiting_for_phone)
 
 
 @admin_router.message(F.text == "Отправить сообщение")
 async def start_send_message_to_group(message: types.Message, session: AsyncSession) -> None:
-    """Начинает процесс отправки сообщения всем пользователям группы."""
+    """Начинает процесс отправки сообщения всем пользователям группы.
+    
+    Args:
+        message (types.Message): Сообщение, полученное от админиистратора.
+        session (AsyncSession): Асинхронная сессия базы данных.
+    
+    """
     groups = await get_groups(session)
     btns = {group.name: f'group_message_{group.id}' for group in groups}
     await message.answer("✅ Пожалуйста, выберите группу:", reply_markup=get_callback_btns(btns=btns))
 
 
 @admin_router.callback_query(F.data.startswith("group_message_"))
-async def select_group_for_message(callback: types.CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
-    """Обрабатывает выбор группы для отправки сообщения."""
+async def select_group_for_message(callback: types.CallbackQuery, state: FSMContext) -> None:
+    """Обрабатывает выбор группы для отправки сообщения.
+    
+    Args:
+        callback (types.CallbackQuery): CallbackQuery от администратора.
+        state (FSMContext): Контекст состояния для хранения данных пользователя.
+    
+    """
     group_id = int(callback.data.split('_')[2])
     await state.update_data({'selected_group_id': group_id})
     
-    await callback.answer("✏️ Пожалуйста, введите сообщение, которое вы хотите отправить всем пользователям этой группы:")
+    await callback.answer("✏️ Пожалуйста, введите сообщение (это может быть текст, фото или видео), которое вы хотите отправить всем пользователям этой группы:")
+    await callback.message.edit_text("✏️ Пожалуйста, введите сообщение (это может быть текст, фото или видео), которое вы хотите отправить всем пользователям этой группы:")
     await state.set_state(SendMessage.waiting_for_message)
+
 
 @admin_router.message(SendMessage.waiting_for_message)
 async def process_group_message(message: types.Message, state: FSMContext, session: AsyncSession) -> None:
-    """Обрабатывает сообщение от администратора и отправляет его всем пользователям группы."""
+    """Обрабатывает сообщение от администратора и отправляет его всем пользователям группы.
+    
+    Args:
+        message (types.Message): Сообщение, отправленное администратором.
+        state (FSMContext): Контекст состояния для хранения данных пользователя.
+        session (AsyncSession): Асинхронная сессия базы данных.
+    
+    """
     user_data = await state.get_data()
     group_id = user_data.get('selected_group_id')
 
@@ -177,6 +206,7 @@ async def process_group_message(message: types.Message, state: FSMContext, sessi
     if not users:
         await message.answer("🚫 В данной группе нет пользователей.")
         return
+
     if message.photo:
         photo = message.photo[-1].file_id 
         for user in users:
@@ -201,15 +231,27 @@ async def process_group_message(message: types.Message, state: FSMContext, sessi
                 await send_message_to_user(message.bot, chat_id, message.text)
 
     await message.answer("✅ Сообщение успешно отправлено всем пользователям группы.")
+
+
 @admin_router.message(SearchUser.waiting_for_phone)
 async def process_phone_number(message: types.Message, session: AsyncSession) -> None:
-    """Обрабатывает введённый номер телефона и ищет пользователя в базе данных."""
+    """Обрабатывает введённый номер телефона и ищет пользователя в базе данных.
     
+    Args:
+        message (types.Message): Сообщение, содержащее номер телефона.
+        session (AsyncSession): Асинхронная сессия базы данных.
+    
+    """
     try:
-        phone_number = message.text.strip()
+        phone_number = message.text.strip().replace(" ", "") 
 
         if not phone_number.isdigit() or len(phone_number) < 10:
-            await message.answer("❌ Ой! Неверный номер телефона. Пожалуйста, введите номер телефона (без плюса):")
+            await message.answer(
+                "❌ Ой! Неверный номер телефона."
+                "Пожалуйста, убедитесь, что вводите корректный номер. "
+                "Вы можете вводить номер как с пробелами, так и без них. "
+                "Пример: <b>375 33 350 78 90</b> или <b>375333507890</b>. 🥺📞"
+            )
             return
 
         user = await orm_get_user(session, phone_number)
@@ -218,7 +260,7 @@ async def process_phone_number(message: types.Message, session: AsyncSession) ->
             group_name = await get_group_by_id(session, user.group_id)
             keyboard_actions_on_user = inline_actions_on_users(user)
             await message.answer(
-                f"Пользователь найден: <b>{user.phone}</b>, Группа: <b>{group_name}</b>",
+                f"Пользователь найден: <b>+{user.phone}</b>, Группа: <b>{group_name}</b>",
                 reply_markup=keyboard_actions_on_user
             )
         else:
@@ -226,14 +268,26 @@ async def process_phone_number(message: types.Message, session: AsyncSession) ->
 
     except ValueError as ve:
         bot_logger.log('error', f"Ошибка при обработке номера телефона: {ve}")
-        await message.answer("❌ Произошла ошибка при обработке номера телефона. Пожалуйста, убедитесь, что вводите корректный номер.")
+        await message.answer(
+            "❌ Произошла ошибка при обработке номера телефона. "
+            "Пожалуйста, убедитесь, что вводите корректный номер. "
+            "Вы можете вводить номер как с пробелами, так и без них. "
+            "Пример: <b>375 33 350 78 90</b> или <b>375333507890</b>. 🥺📞"
+        )    
     except Exception as e:
         bot_logger.log('error', f"Необработанная ошибка: {e}")
         await message.answer("❌ Произошла ошибка. Пожалуйста, попробуйте снова позже.")
 
+
 @admin_router.callback_query(F.data.startswith('delete_user_'))
 async def delete_user(callback_query: types.CallbackQuery, session: AsyncSession) -> None:
-    """Удаляет пользователя по номеру телефона, переданному через callback_data."""
+    """Удаляет пользователя по номеру телефона, переданному через callback_data.
+    
+    Args:
+        callback_query (types.CallbackQuery): CallbackQuery от пользователя.
+        session (AsyncSession): Асинхронная сессия базы данных.
+    
+    """
     phone = callback_query.data.split('_')[-1]
 
     user = await orm_get_user(session, phone)
@@ -243,10 +297,7 @@ async def delete_user(callback_query: types.CallbackQuery, session: AsyncSession
         return
 
     try:
-
         await orm_delete_user(session, user)
-        
-
         await callback_query.answer(f"Пользователь с номером +{user.phone} был удален.")
         await callback_query.message.edit_text(f"Пользователь c номером +{user.phone} был удален", reply_markup=None)
 
@@ -254,12 +305,13 @@ async def delete_user(callback_query: types.CallbackQuery, session: AsyncSession
         await callback_query.answer(f"❌ Произошла ошибка при удалении пользователя: {e}")
         bot_logger.log('error', f"Ошибка при удалении пользователя с номером +{user.phone}: {e}")
 
+
 @admin_router.callback_query(F.data.startswith("select_group_"))
 async def confirm_user_addition(callback: types.CallbackQuery, session: AsyncSession, state: FSMContext)-> None:
     """Подтверждает добавление пользователя в выбранную группу.
 
     Args:
-        callback (types.CallbackQuery): Объект обратного вызова от пользователя.
+        callback (types.CallbackQuery): Объект обратного вызова от администратора.
         session (AsyncSession): Асинхронная сессия базы данных.
         state (FSMContext): Состояние машины состояний.
     """
@@ -284,9 +336,16 @@ async def confirm_user_addition(callback: types.CallbackQuery, session: AsyncSes
         bot_logger.log('error',f"Ошибка при добавлении пользователя: {e}")
         await callback.message.edit_text("❌ Произошла ошибка при добавлении пользователя. Пожалуйста, попробуйте позже.")
 
+
 @admin_router.callback_query(F.data.startswith('change_group_'))
 async def change_group_user(callback_query: types.CallbackQuery, session: AsyncSession) -> None:
-    """Удаляет пользователя по номеру телефона, переданному через callback_data и меняет группу."""
+    """Меняет группу пользователя по номеру телефона, переданному через callback_data.
+    
+    Args:
+        callback_query (types.CallbackQuery): CallbackQuery от администратора с данными о новой группе и телефоне.
+        session (AsyncSession): Асинхронная сессия базы данных.
+    
+    """
     data = callback_query.data.split('_')[-1] 
     id_group, phone = data.split(', ') 
     group_name = await get_group_by_id(session, id_group)
@@ -304,11 +363,10 @@ async def change_group_user(callback_query: types.CallbackQuery, session: AsyncS
     user.group_id = int(new_id_group)
     await session.commit()
     await callback_query.answer(f"Группа пользователя обновлена на {group_name}.")
-    keyboard_actions_on_user = inline_actions_on_users(user)
-
-
-    await callback_query.message.edit_text(f" 📞 Номер: +{user.phone}, Группа: {group_name}", reply_markup=keyboard_actions_on_user)
     
+    keyboard_actions_on_user = inline_actions_on_users(user)
+    await callback_query.message.edit_text(f" 📞 Номер: +{user.phone}, Группа: {group_name}", reply_markup=keyboard_actions_on_user)
+
 
 @admin_router.message(AddAdmin.phone_input)
 async def input_phone(message: types.Message, state: FSMContext)-> None:
@@ -319,10 +377,15 @@ async def input_phone(message: types.Message, state: FSMContext)-> None:
         state (FSMContext): Состояние машины состояний.
     """
     try:
-        phone_number = message.text.strip()
+        phone_number = message.text.strip().replace(" ", "") 
 
         if not phone_number.isdigit() or len(phone_number) < 10:
-            await message.answer("❌ Ой! Неверный номер телефона. Пожалуйста, введите номер телефона (без плюса):")
+            await message.answer(
+            "❌ Ой! Неверный номер телефона."
+            "Пожалуйста, убедитесь, что вводите корректный номер. "
+            "Вы можете вводить номер как с пробелами, так и без них. "
+            "Пример: <b>375 33 350 78 90</b> или <b>375333507890</b>. 🥺📞"
+            )
             return
 
         password, hashed_password = generate_hashed_password()
@@ -341,6 +404,7 @@ async def input_phone(message: types.Message, state: FSMContext)-> None:
         bot_logger.log('error',f"Ошибка при вводе номера телефона администратора: {e}")
         await message.answer("❌ Произошла ошибка. Пожалуйста, попробуйте снова.")
 
+
 @admin_router.message(AddUser.phone_input)
 async def process_phone_input(message: types.Message, state: FSMContext, session: AsyncSession)-> None:
     """Обрабатывает ввод номера телефона пользователя.
@@ -351,10 +415,15 @@ async def process_phone_input(message: types.Message, state: FSMContext, session
         session (AsyncSession): Асинхронная сессия базы данных.
     """
     try:
-        phone_number = message.text.strip()
+        phone_number = message.text.strip().replace(" ", "") 
 
         if not phone_number.isdigit() or len(phone_number) < 10:
-            await message.answer("❌ Ой! Неверный номер телефона. Пожалуйста, введите номер телефона (без плюса):")
+            await message.answer(
+            "❌ Ой! Неверный номер телефона."
+            "Пожалуйста, убедитесь, что вводите корректный номер. "
+            "Вы можете вводить номер как с пробелами, так и без них. "
+            "Пример: <b>375 33 350 78 90</b> или <b>375333507890</b>. 🥺📞"
+            )
             return
 
         password, hashed_password = generate_hashed_password()
@@ -400,6 +469,7 @@ async def confirm_addition(callback: types.CallbackQuery, session: AsyncSession,
     except Exception as e:
         bot_logger.log('error', f"Ошибка при добавлении администратора: {e}")
         await callback.message.edit_text("❌ Произошла ошибка при добавлении администратора. Пожалуйста, попробуйте позже.")
+
 
 @admin_router.callback_query(F.data.startswith("cancel_"))
 async def cancel_addition(callback: types.CallbackQuery)-> None:

@@ -6,6 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.mongo import MongoStorage
 
+from bot.middleware.db import DataBaseSession
 from bot.database.engine import create_db, session_maker
 from bot.logging.logger import bot_logger
 from bot.handlers.user_handlers import user_router
@@ -14,9 +15,8 @@ from bot.mongodb.mongo_config import mongo_db
 
 from dotenv import load_dotenv
 
-from bot.middleware.db import DataBaseSession
-
 load_dotenv('.env')
+
 
 bot = Bot(token=os.getenv('TOKEN'), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 

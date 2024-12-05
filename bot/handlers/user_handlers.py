@@ -1,23 +1,33 @@
 from aiogram import F, types, Router
 from aiogram.filters import CommandStart
-
 from aiogram.types import ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.auth.auth_function import get_auth_data
-from bot.auth.user_verification import check_admin_credentials, check_user_credentials, get_variable_admin
-from bot.database.orm_query import get_group_by_id, orm_add_chatid_for_user, orm_get_admin, orm_get_user
-from bot.google.google_function import create_drive_service, get_drive_config, get_files_from_folder
+from bot.auth.user_verification import (
+    check_admin_credentials,
+    check_user_credentials,
+    get_variable_admin,
+)
+from bot.database.orm_query import (
+    get_group_by_id,
+    orm_add_chatid_for_user,
+    orm_get_admin,
+    orm_get_user,
+)
+from bot.google.google_function import (
+    create_drive_service,
+    get_drive_config,
+    get_files_from_folder,
+)
 from bot.keyboards.reply import get_keyboard
 from bot.logging.logger import bot_logger
 
 user_router = Router()
 SERVICE_ACCOUNT_FILE, SCOPES = get_drive_config()
 service = create_drive_service(SERVICE_ACCOUNT_FILE, SCOPES)
-
 
 class Form(StatesGroup):
     auth = State()
@@ -26,7 +36,13 @@ class Form(StatesGroup):
     get = State()
 
 @user_router.message(CommandStart())
-async def start_cmd(message: types.Message, state: FSMContext)-> None:
+async def start_cmd(message: types.Message, state: FSMContext) -> None:
+    """Обрабатывает команду /start, отправляет приветственное сообщение и кнопку для аутентификации.
+
+    Args:
+        message (types.Message): Сообщение от пользователя.
+        state (FSMContext): Контекст состояния для управления состоянием пользователя.
+    """
     try:
         start_message = (
             "👋 Приветствую вас, я <b>FileScout</b>! 🌟 Я — ваш надежный помощник для поиска и получения файлов из Google Диска. 📂\n\n"
@@ -57,19 +73,24 @@ async def start_cmd(message: types.Message, state: FSMContext)-> None:
         await message.answer("⚠️ Произошла ошибка при запуске бота. Пожалуйста, попробуйте позже.")
 
 @user_router.message((F.text == "🔑 Войти") | (F.contact), Form.auth)
+async def handle_auth(message: types.Message, state: FSMContext) -> None:
+    """Обрабатывает аутентификацию пользователя, запрашивает пароль или телефон.
 
-async def handle_auth(message: types.Message, state: FSMContext)-> None:
+    Args:
+        message (types.Message): Сообщение от пользователя.
+        state (FSMContext): Контекст состояния для управления состоянием пользователя.
+    """
     try:            
         if message.text == "🔑 Войти":
             phone, password = await get_auth_data(state)
-            auth_message =(
-            "🔒 Введите пароль для входа в ваш аккаунт:\n\n"
-            "Пожалуйста, убедитесь, что вы вводите правильный пароль. 🛠️\n\n"
-            "Как только вы введете пароль, вы получите доступ ко всем своим файлам и функциям. "
-            "Давайте сделаем это вместе! 🚀"
+            auth_message = (
+                "🔒 Введите пароль для входа в ваш аккаунт:\n\n"
+                "Пожалуйста, убедитесь, что вы вводите правильный пароль. 🛠️\n\n"
+                "Как только вы введете пароль, вы получите доступ ко всем своим файлам и функциям. "
+                "Давайте сделаем это вместе! 🚀"
             )            
             await message.answer(auth_message, reply_markup=ReplyKeyboardRemove())
-            await state.update_data({'awaiting_password': True,'phone_number': phone, 'password': password })
+            await state.update_data({'awaiting_password': True, 'phone_number': phone, 'password': password})
             await state.set_state(Form.auth)
 
             bot_logger.log('info', f'Пользователь {message.from_user.username} нажал на кнопку "Войти"')
@@ -78,13 +99,13 @@ async def handle_auth(message: types.Message, state: FSMContext)-> None:
             contact = message.contact
             phone_number = contact.phone_number
             login_message = (
-            f"📱 Ваш логин: <b>+{phone_number}</b>. \n\n"
-            "Теперь, чтобы завершить процесс входа, пожалуйста, введите свой пароль. 🔑\n\n"
-            "Убедитесь, что вы вводите правильный пароль.\n\n "
-            "Давайте продолжим, и вы сможете получить доступ ко всем своим файлам! 📂"
+                f"📱 Ваш логин: <b>+{phone_number}</b>. \n\n"
+                "Теперь, чтобы завершить процесс входа, пожалуйста, введите свой пароль. 🔑\n\n"
+                "Убедитесь, что вы вводите правильный пароль.\n\n "
+                "Давайте продолжим, и вы сможете получить доступ ко всем своим файлам! 📂"
             )
             await message.answer(login_message, reply_markup=ReplyKeyboardRemove())
-            await state.update_data({'awaiting_password': True,'phone_number': phone_number })
+            await state.update_data({'awaiting_password': True, 'phone_number': phone_number})
             await state.set_state(Form.auth)
             bot_logger.log('info', f'Пользователь {message.from_user.username} отправил контакт: {phone_number}')
 
@@ -92,14 +113,20 @@ async def handle_auth(message: types.Message, state: FSMContext)-> None:
         bot_logger.log('error', f'Ошибка в handle_auth: {e}')
         await message.answer("⚠️ Произошла ошибка при авторизации. Пожалуйста, попробуйте снова.")
 
-@user_router.message(F.text == "❌ Выйти") #Банальная очередность хэндлеров
-async def exit_handler(message: types.Message, state: FSMContext)-> None:
+@user_router.message(F.text == "❌ Выйти")
+async def exit_handler(message: types.Message, state: FSMContext) -> None:
+    """Обрабатывает выход пользователя из аккаунта.
+
+    Args:
+        message (types.Message): Сообщение от пользователя.
+        state (FSMContext): Контекст состояния для управления состоянием пользователя.
+    """
     try:
         await state.set_state(Form.auth)
         logout_message = (
-        "🚪 Вы успешно вышли из аккаунта. Мы надеемся, что ваше время было приятным!\n\n"
-        "Чтобы вернуться и продолжить пользоваться всеми функциями нашего сервиса, "
-        "просто нажмите кнопку <b>🔑 Войти.</b>\n\n"
+            "🚪 Вы успешно вышли из аккаунта. Мы надеемся, что ваше время было приятным!\n\n"
+            "Чтобы вернуться и продолжить пользоваться всеми функциями нашего сервиса, "
+            "просто нажмите кнопку <b>🔑 Войти.</b>\n\n"
         )
         await message.answer(logout_message, reply_markup=get_keyboard("🔑 Войти", placeholder="Что вас интересует?"))
         await state.update_data({'admin': False})
@@ -109,7 +136,14 @@ async def exit_handler(message: types.Message, state: FSMContext)-> None:
         await message.answer("⚠️ Произошла ошибка при выходе. Пожалуйста, попробуйте снова.")
 
 @user_router.message(F.text, Form.auth)
-async def auth(message: types.Message, state: FSMContext, session: AsyncSession)-> None:
+async def auth(message: types.Message, state: FSMContext, session: AsyncSession) -> None:
+    """Обрабатывает ввод пароля и аутентифицирует пользователя или администратора.
+
+    Args:
+        message (types.Message): Сообщение от пользователя.
+        state (FSMContext): Контекст состояния для управления состоянием пользователя.
+        session (AsyncSession): Асинхронная сессия базы данных.
+    """
     try:
         user_data = await state.get_data()
         phone_number, password = await get_auth_data(state)
@@ -125,8 +159,8 @@ async def auth(message: types.Message, state: FSMContext, session: AsyncSession)
         if admin and await check_admin_credentials(admin, password, message):
             await state.set_state(Form.search) 
             await state.update_data({'admin': True, 'awaiting_password': False})
-
             return
+        
         user = await orm_get_user(session, phone_number)
 
         if user and await check_user_credentials(user, password, message):
@@ -143,8 +177,13 @@ async def auth(message: types.Message, state: FSMContext, session: AsyncSession)
         await message.answer("⚠️ Произошла ошибка при обработке. Пожалуйста, попробуйте снова.")
 
 @user_router.message((F.text == "Поиск"))
+async def search_catalog(message: types.Message, state: FSMContext) -> None:
+    """Запрашивает у пользователя номер каталога для поиска файлов.
 
-async def search_catalog(message: types.Message, state: FSMContext)-> None:
+    Args:
+        message (types.Message): Сообщение от пользователя.
+        state (FSMContext): Контекст состояния для управления состоянием пользователя.
+    """
     try:
         is_admin = await get_variable_admin(state)
 
@@ -169,6 +208,13 @@ async def search_catalog(message: types.Message, state: FSMContext)-> None:
 
 @user_router.message(F.text != "Админ панель", Form.get)
 async def get_files(message: types.Message, state: FSMContext, session: AsyncSession) -> None:
+    """Получает файлы из Google Диска по указанному имени папки.
+
+    Args:
+        message (types.Message): Сообщение от пользователя с названием папки.
+        state (FSMContext): Контекст состояния для управления состоянием пользователя.
+        session (AsyncSession): Асинхронная сессия базы данных.
+    """
     folder_name = message.text.strip()
     
     try:
