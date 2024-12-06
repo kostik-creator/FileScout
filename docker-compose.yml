@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   bot:
@@ -16,7 +15,7 @@ services:
       - mongo
 
   postgres:
-    image: postgres:latest
+    image: postgres:17
     restart: on-failure
     env_file:
       - ./.env
@@ -28,7 +27,7 @@ services:
       - "5432:5432"
 
   mongo:
-    image: mongo:latest
+    image: mongo:8
     restart: on-failure
     env_file:
       - ./.env
