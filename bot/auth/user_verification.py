@@ -74,5 +74,5 @@ async def check_user_credentials(user: Any, password: str, message: types.Messag
 async def get_variable_admin(state: FSMContext):
     """Получает данные пользователя из состояния и проверяет, является ли он администратором."""
     user_data = await state.get_data()
-    is_admin = user_data.get('admin', False)  # По умолчанию False, если ключ отсутствует
+    is_admin = user_data.get('admin') 
     return is_admin

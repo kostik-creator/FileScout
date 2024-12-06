@@ -174,16 +174,11 @@ async def auth(message: types.Message, state: FSMContext, session: AsyncSession)
 
     except Exception as e:
         bot_logger.log('error', f'Ошибка в auth: {e}')
+        print(e)
         await message.answer("⚠️ Произошла ошибка при обработке. Пожалуйста, попробуйте снова.")
 
-@user_router.message((F.text == "Поиск"))
-async def search_catalog(message: types.Message, state: FSMContext) -> None:
-    """Запрашивает у пользователя номер каталога для поиска файлов.
-
-    Args:
-        message (types.Message): Сообщение от пользователя.
-        state (FSMContext): Контекст состояния для управления состоянием пользователя.
-    """
+@user_router.message(F.text == "Поиск")
+async def search_catalog(message: types.Message, state: FSMContext)-> None:
     try:
         is_admin = await get_variable_admin(state)
 
@@ -208,37 +203,42 @@ async def search_catalog(message: types.Message, state: FSMContext) -> None:
 
 @user_router.message(F.text != "Админ панель", Form.get)
 async def get_files(message: types.Message, state: FSMContext, session: AsyncSession) -> None:
-    """Получает файлы из Google Диска по указанному имени папки.
-
-    Args:
-        message (types.Message): Сообщение от пользователя с названием папки.
-        state (FSMContext): Контекст состояния для управления состоянием пользователя.
-        session (AsyncSession): Асинхронная сессия базы данных.
-    """
-    folder_name = message.text.strip()
     
     try:
+        folder_name = message.text.strip()
+
         user_data = await state.get_data()
         phone_number = user_data.get('phone_number')
-        user = await orm_get_user(session, phone_number)
-        
-        group_name = await get_group_by_id(session, user.group_id)
-        
         is_admin = await get_variable_admin(state)
 
-        response_text, error = await get_files_from_folder(service, folder_name, None if is_admin else group_name)
+        if not is_admin:
+            user = await orm_get_user(session, phone_number)
+            await message.answer(str(phone_number))
+            if not user:
+                await message.answer("⚠️ Пользователь не найден.")
+                return
+            
+            group_name = await get_group_by_id(session, user.group_id)
+            
+            if not group_name:
+                await message.answer("⚠️ Группа пользователя не найдена.")
+                return
+            
+            response_text, error = await get_files_from_folder(service, folder_name, group_name)   
+        else:
+            
+            response_text, error = await get_files_from_folder(service, folder_name, None)   
+
+        
 
         if error:
             bot_logger.log('error', f'Ошибка при получении файлов: {error}')
             await message.answer(f"❌ Ошибка: {response_text}")
         else:
-            if is_admin:
-                exit_keyboard = get_keyboard("❌ Выйти", "Админ панель", placeholder="Что вас интересует?")
-            else:
-                exit_keyboard = get_keyboard("❌ Выйти", placeholder="Что вас интересует?")
-                
+            exit_keyboard = get_keyboard("❌ Выйти", "Админ панель" if is_admin else "", placeholder="Что вас интересует?")
             await message.answer(response_text, reply_markup=exit_keyboard)
 
     except Exception as e:
         bot_logger.log('error', f'Необработанная ошибка в get_files: {e}')
         await message.answer("⚠️ Произошла ошибка при обработке запроса. Пожалуйста, попробуйте позже.")
+        await message.answer(str(e))

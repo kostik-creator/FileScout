@@ -2,7 +2,7 @@
 Thumbs.db
 
 venv/
-env/
+
 *.pyc
 __pycache__/
 
@@ -15,16 +15,13 @@ __pycache__/
 *.tmp
 tmp/
 logs/
-bot.log
-db.log
+
 
 *.sqlite
 *.db
 
 tests/
 test_*
-
-# filescout-6aff1164b27f.json
 
 .git/
 .gitignore

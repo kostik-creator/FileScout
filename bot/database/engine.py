@@ -11,7 +11,17 @@ from dotenv import load_dotenv
 
 load_dotenv('.env')
 
-engine = create_async_engine(os.getenv('DB_URL'))
+DB_USER = os.getenv('POSTGRES_USER')
+DB_PASSWORD = os.getenv('POSTGRES_PASSWORD')
+DB_HOST = os.getenv('POSTGRES_HOST')
+DB_PORT = os.getenv('POSTGRES_PORT')
+DB_NAME = os.getenv('POSTGRES_DB')
+
+engine = create_async_engine(
+    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
+    echo=True
+)
+
 session_maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 async def create_db() -> None:
